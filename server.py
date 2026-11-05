@@ -23,6 +23,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS trades (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             bot_id TEXT,
+            magic INTEGER,
             ticket INTEGER,
             symbol TEXT,
             type TEXT,
@@ -38,6 +39,7 @@ init_db()
 
 class Trade(BaseModel):
     bot_id: str
+    magic: int = 0  # <--- Nuevo campo para el Número Mágico
     ticket: int
     symbol: str
     type: str
@@ -53,9 +55,9 @@ def receive_trade(trade: Trade):
     conn = sqlite3.connect("trading_data.db")
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO trades (bot_id, ticket, symbol, type, profit, balance_after, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (trade.bot_id, trade.ticket, trade.symbol, trade.type, trade.profit, trade.balance_after, trade.timestamp))
+        INSERT INTO trades (bot_id, magic, ticket, symbol, type, profit, balance_after, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (trade.bot_id, trade.magic, trade.ticket, trade.symbol, trade.type, trade.profit, trade.balance_after, trade.timestamp))
     conn.commit()
     conn.close()
     
