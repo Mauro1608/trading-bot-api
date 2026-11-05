@@ -74,15 +74,14 @@ def init_db():
             if col not in cols:
                 conn.execute(f"ALTER TABLE trades ADD COLUMN {col} {ddl}")
         
-        # ELIMINAMOS EL ÍNDICE ANTIGUO SI EXISTÍA Y CREAMOS EL GLOBAL POR TICKET
-        try:
-            conn.execute("DROP INDEX IF EXISTS ux_trades_bot_ticket")
-        except Exception:
-            pass
-
-        # El ticket ahora es único globalmente para evitar duplicados entre distintos gráficos/bots
+        # El ticket es único dentro de una cuenta, no entre brókers distintos
+        conn.execute("DROP INDEX IF EXISTS ux_trades_ticket")
         conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS ux_trades_ticket ON trades(ticket)"
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_trades_bot_ticket ON trades(bot_id, ticket)"
+        )
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_trades_account_ticket "
+            "ON trades(account, ticket) WHERE account <> ''"
         )
         conn.execute("CREATE INDEX IF NOT EXISTS ix_trades_ts ON trades(timestamp)")
 
