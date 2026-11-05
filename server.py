@@ -63,6 +63,7 @@ def init_db():
                 timestamp TEXT
             )
         """)
+        
         # Migración: agrega columnas nuevas si la tabla ya existía sin ellas
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(trades)")}
         for col, ddl in (
@@ -73,9 +74,15 @@ def init_db():
             if col not in cols:
                 conn.execute(f"ALTER TABLE trades ADD COLUMN {col} {ddl}")
         
-        # Índice único para evitar duplicados por bot y ticket
+        # ELIMINAMOS EL ÍNDICE ANTIGUO SI EXISTÍA Y CREAMOS EL GLOBAL POR TICKET
+        try:
+            conn.execute("DROP INDEX IF EXISTS ux_trades_bot_ticket")
+        except Exception:
+            pass
+
+        # El ticket ahora es único globalmente para evitar duplicados entre distintos gráficos/bots
         conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS ux_trades_bot_ticket ON trades(bot_id, ticket)"
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_trades_ticket ON trades(ticket)"
         )
         conn.execute("CREATE INDEX IF NOT EXISTS ix_trades_ts ON trades(timestamp)")
 
@@ -118,7 +125,6 @@ def health():
     return {"status": "ok"}
 
 
-# Nota: Se removió la dependencia estricta de check_api_key para que los WebRequests de los bots no fallen con 401.
 @app.post("/api/trade")
 def receive_trade(trade: Trade):
     ts = normalize_ts(trade.timestamp)
@@ -145,7 +151,7 @@ def receive_trade(trade: Trade):
         inserted = cur.rowcount > 0
 
     if not inserted:
-        return {"status": "ignored", "message": "El ticket ya fue registrado para este bot"}
+        return {"status": "ignored", "message": "El ticket ya fue registrado anteriormente"}
     return {"status": "success", "message": "Trade guardado correctamente"}
 
 
