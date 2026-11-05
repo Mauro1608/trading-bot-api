@@ -76,12 +76,6 @@ def init_db():
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS ux_trades_bot_ticket ON trades(bot_id, ticket)"
         )
-        # Red de seguridad: un mismo deal de una misma cuenta nunca se guarda dos veces,
-        # aunque dos bots lo reporten con distinto bot_id
-        conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS ux_trades_account_ticket "
-            "ON trades(account, ticket) WHERE account <> ''"
-        )
         conn.execute("CREATE INDEX IF NOT EXISTS ix_trades_ts ON trades(timestamp)")
 
 
@@ -151,20 +145,6 @@ def get_trades():
     with get_db() as conn:
         rows = conn.execute("SELECT * FROM trades ORDER BY timestamp ASC, id ASC").fetchall()
     return [dict(r) for r in rows]
-
-
-@app.delete("/api/trades", dependencies=[Depends(check_api_key)])
-def delete_trades(bot_id: Optional[str] = None):
-    """Borra todos los trades (o solo los de un bot_id). Requiere API_KEY configurada."""
-    if not API_KEY:
-        raise HTTPException(status_code=403, detail="Definí API_KEY en el servidor para habilitar el borrado")
-    with get_db() as conn:
-        if bot_id:
-            cur = conn.execute("DELETE FROM trades WHERE bot_id = ?", (bot_id,))
-        else:
-            cur = conn.execute("DELETE FROM trades")
-        deleted = cur.rowcount
-    return {"deleted": deleted}
 
 
 if __name__ == "__main__":
