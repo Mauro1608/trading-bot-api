@@ -6,7 +6,7 @@ from datetime import datetime
 
 app = FastAPI(title="Trading Dashboard Backend")
 
-# Permitir conexiones desde cualquier origen (para que las VPS puedan enviar datos)
+# Permitir conexiones desde cualquier origen
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Inicializar base de datos SQLite
+# Inicializar base de datos SQLite con la columna magic
 def init_db():
     conn = sqlite3.connect("trading_data.db")
     cursor = conn.cursor()
@@ -39,7 +39,7 @@ init_db()
 
 class Trade(BaseModel):
     bot_id: str
-    magic: int = 0  # <--- Nuevo campo para el Número Mágico
+    magic: int = 0
     ticket: int
     symbol: str
     type: str
@@ -54,6 +54,15 @@ def receive_trade(trade: Trade):
     
     conn = sqlite3.connect("trading_data.db")
     cursor = conn.cursor()
+    
+    # Validar si el ticket ya existe para evitar duplicados en la base de datos
+    cursor.execute("SELECT id FROM trades WHERE ticket = ?", (trade.ticket,))
+    existing_trade = cursor.fetchone()
+    
+    if existing_trade:
+        conn.close()
+        return {"status": "ignored", "message": "El ticket ya fue registrado anteriormente"}
+
     cursor.execute("""
         INSERT INTO trades (bot_id, magic, ticket, symbol, type, profit, balance_after, timestamp)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
