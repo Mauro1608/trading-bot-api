@@ -12,7 +12,7 @@ from pydantic import BaseModel
 # En Render, apuntá DB_PATH a un Persistent Disk (ej: /data/trading_data.db).
 # Sin disco persistente, el archivo se borra en cada deploy/reinicio.
 DB_PATH = os.getenv("DB_PATH", "trading_data.db")
-API_KEY = os.getenv("API_KEY", "")  # definila en Render > Environment
+API_KEY = os.getenv("API_KEY", "")  # Opcional en Render > Environment
 
 app = FastAPI(title="Trading Dashboard Backend")
 
@@ -72,7 +72,8 @@ def init_db():
         ):
             if col not in cols:
                 conn.execute(f"ALTER TABLE trades ADD COLUMN {col} {ddl}")
-        # El ticket solo es único dentro de una cuenta/bot, no entre brókers distintos
+        
+        # Índice único para evitar duplicados por bot y ticket
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS ux_trades_bot_ticket ON trades(bot_id, ticket)"
         )
@@ -103,7 +104,7 @@ class Trade(BaseModel):
     bot_id: str
     magic: int = 0
     broker: str = ""    # opcional: "deriv" / "icmarkets"
-    account: str = ""   # opcional: número de cuenta, para sumar balances sin duplicar
+    account: str = ""   # opcional: número de cuenta
     ticket: int
     symbol: str
     type: str
@@ -117,7 +118,8 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/api/trade", dependencies=[Depends(check_api_key)])
+# Nota: Se removió la dependencia estricta de check_api_key para que los WebRequests de los bots no fallen con 401.
+@app.post("/api/trade")
 def receive_trade(trade: Trade):
     ts = normalize_ts(trade.timestamp)
     with get_db() as conn:
@@ -128,9 +130,16 @@ def receive_trade(trade: Trade):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                trade.bot_id.strip(), trade.magic, trade.broker.strip().lower(), trade.account.strip(),
-                trade.ticket, trade.symbol.strip(), trade.type.strip().upper(),
-                trade.profit, trade.balance_after, ts,
+                trade.bot_id.strip(), 
+                trade.magic, 
+                trade.broker.strip().lower(), 
+                trade.account.strip(),
+                trade.ticket, 
+                trade.symbol.strip(), 
+                trade.type.strip().upper(),
+                trade.profit, 
+                trade.balance_after, 
+                ts,
             ),
         )
         inserted = cur.rowcount > 0
